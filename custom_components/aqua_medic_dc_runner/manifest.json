@@ -8,5 +8,6 @@
   "codeowners": ["@maziggy"],
   "iot_class": "cloud_polling",
   "version": "2025.2.1",
-  "supported_platforms": ["number", "switch"]
+  "supported_platforms": ["number", "switch"],
+  "integration_type": "hub"
 }
