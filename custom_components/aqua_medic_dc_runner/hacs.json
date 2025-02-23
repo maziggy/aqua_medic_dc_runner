@@ -1,0 +1,11 @@
+{
+  "name": "Aqua Medic DC Runner",
+  "content_in_root": false,
+  "country": ["US"],
+  "render_readme": true,
+  "zip_release": false,
+  "filename": "custom_components/aqua_medic_dc_runner",
+  "domains": ["aqua_medic_dc_runner"],
+  "homeassistant": "2025.2.1",
+  "iot_class": "cloud_polling"
+}

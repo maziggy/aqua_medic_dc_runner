@@ -1,0 +1,129 @@
+import logging
+import asyncio
+from datetime import timedelta
+from homeassistant.components.number import NumberEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
+from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
+from .client import AquaMedicClient  # ✅ Ensure client is imported
+
+_LOGGER = logging.getLogger(__name__)
+
+
+async def async_setup_entry(hass, entry, async_add_entities):
+    """Set up Aqua Medic number entities for motor speed and update interval."""
+    client: AquaMedicClient = hass.data[DOMAIN][entry.entry_id]
+
+    devices = await client.get_devices()
+    if not devices:
+        _LOGGER.error("❌ No devices found in Aqua Medic integration.")
+        return
+
+    device_id = devices[0]["did"]
+
+    coordinator = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name="aqua_medic_motor_speed_update",
+        update_method=lambda: client.get_latest_device_data(device_id),
+        update_interval=timedelta(seconds=15),
+    )
+
+    await coordinator.async_config_entry_first_refresh()
+
+    async_add_entities([
+        AquaMedicMotorSpeed(client, device_id, coordinator, entry),
+        AquaMedicUpdateInterval(entry, device_id)  # ✅ Pass `device_id` correctly
+    ])
+
+    _LOGGER.info("✅ Registered Motor Speed and Update Interval entities for device: %s", device_id)
+
+
+class AquaMedicMotorSpeed(CoordinatorEntity, NumberEntity):
+    """Number entity to control Aqua Medic motor speed."""
+
+    def __init__(self, client, device_id, coordinator, entry):
+        """Initialize the number entity."""
+        super().__init__(coordinator)
+        self._client = client
+        self._device_id = device_id
+        self._attr_name = "Speed"
+        self._attr_unique_id = f"{device_id}_motor_speed"
+        self._attr_native_min_value = 30
+        self._attr_native_max_value = 100
+        self._attr_native_step = 1
+
+        # ✅ Ensure device_info correctly associates the entity with the device
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, device_id)},
+            "name": "Aqua Medic DC Runner",
+            "manufacturer": "Aqua Medic",
+            "model": "DC Runner Pump",
+            "via_device": entry.entry_id,  # Link to parent device
+        }
+
+    @property
+    def icon(self):
+        return "mdi:fan-chevron-up"
+
+    @property
+    def native_value(self):
+        """Return the current motor speed."""
+        if not self.coordinator.data:
+            _LOGGER.warning("⚠️ Coordinator data is None, returning last known speed.")
+            return self._attr_native_value
+
+        # ✅ Ensure we extract the correct JSON format from API response
+        device_data = self.coordinator.data.get("attr", {})
+        if not device_data:
+            _LOGGER.warning("⚠️ API response is missing 'attr' field: %s", self.coordinator.data)
+            return self._attr_native_value  # Return last known value
+
+        motor_speed = device_data.get("Motor_Speed")
+
+        _LOGGER.debug("📡 Motor Speed from API: %s", motor_speed)
+
+        return motor_speed if motor_speed is not None else self._attr_native_value
+
+    async def async_set_native_value(self, value: float):
+        """Set motor speed."""
+        _LOGGER.info("⚙️ Setting motor speed to %s for device %s", value, self._device_id)
+        await self._client.set_motor_speed(self._device_id, int(value))
+
+        # ✅ **Force refresh from API after setting speed**
+        await asyncio.sleep(2)
+        _LOGGER.info("🔄 Fetching latest state after speed change")
+        await self.coordinator.async_request_refresh()
+
+
+class AquaMedicUpdateInterval(NumberEntity):
+    """Custom NumberEntity for controlling update interval."""
+
+    def __init__(self, entry, device_id):
+        """Initialize the entity"""
+        self._attr_name = "Update Interval"
+        self._attr_unique_id = f"{entry.entry_id}_update_interval"
+        self._attr_native_min_value = 5
+        self._attr_native_max_value = 3600
+        self._attr_native_step = 1
+        self._attr_native_unit_of_measurement = "seconds"
+        self._attr_native_value = DEFAULT_UPDATE_INTERVAL
+        self._attr_mode = "slider"  # ✅ Ensures slider is used in UI
+
+        # ✅ Fix `via_device` issue by referencing `device_id` correctly
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, device_id)},  # Ensure correct device ID is used
+            "name": "Aqua Medic DC Runner",
+            "manufacturer": "Aqua Medic",
+            "model": "DC Runner Pump",
+            "via_device": device_id,  # Fix the incorrect via_device reference
+        }
+
+    @property
+    def icon(self):
+        return "mdi:camera-timer"
+
+    def set_native_value(self, value: float) -> None:
+        """Set the update interval value"""
+        self._attr_native_value = int(value)
+        self.schedule_update_ha_state()
+        _LOGGER.info(f"🔄 Update interval changed to {int(value)} seconds")
