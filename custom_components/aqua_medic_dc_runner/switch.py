@@ -43,7 +43,7 @@ class AquaMedicPowerSwitch(CoordinatorEntity, SwitchEntity):
         self._client = client
         self._device_id = device_id
         self._attr_name = "Power"
-        self._attr_unique_id = f"{device_id}_power"
+        self._attr_unique_id = f"aqua_medic_dc_runner_{device_id}_power"
         self._entry = entry  # 🔹 Store entry for later reference
 
     @property

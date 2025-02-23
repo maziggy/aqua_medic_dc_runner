@@ -47,7 +47,7 @@ class AquaMedicMotorSpeed(CoordinatorEntity, NumberEntity):
         self._client = client
         self._device_id = device_id
         self._attr_name = "Speed"
-        self._attr_unique_id = f"{device_id}_motor_speed"
+        self._attr_unique_id = f"aqua_medic_dc_runner_{device_id}_speed"
         self._attr_native_min_value = 30
         self._attr_native_max_value = 100
         self._attr_native_step = 1
@@ -101,7 +101,7 @@ class AquaMedicUpdateInterval(NumberEntity):
     def __init__(self, entry, device_id):
         """Initialize the entity"""
         self._attr_name = "Update Interval"
-        self._attr_unique_id = f"{entry.entry_id}_update_interval"
+        self._attr_unique_id = f"aqua_medic_dc_runner_{device_id}_update_interval"
         self._attr_native_min_value = 5
         self._attr_native_max_value = 3600
         self._attr_native_step = 1
