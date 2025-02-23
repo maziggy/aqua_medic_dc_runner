@@ -51,6 +51,7 @@ class AquaMedicMotorSpeed(CoordinatorEntity, NumberEntity):
         self._attr_native_min_value = 30
         self._attr_native_max_value = 100
         self._attr_native_step = 1
+        self.entity_id = f"number.aqua_medic_dc_runner_{device_id}_speed"
 
         # ✅ Ensure device_info correctly associates the entity with the device
         self._attr_device_info = {
@@ -108,7 +109,8 @@ class AquaMedicUpdateInterval(NumberEntity):
         self._attr_native_unit_of_measurement = "seconds"
         self._attr_native_value = DEFAULT_UPDATE_INTERVAL
         self._attr_mode = "slider"  # ✅ Ensures slider is used in UI
-
+        self.entity_id = f"number.aqua_medic_dc_runner_{device_id}_update_interval"
+        
         # ✅ Fix `via_device` issue by referencing `device_id` correctly
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device_id)},  # Ensure correct device ID is used

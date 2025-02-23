@@ -45,6 +45,7 @@ class AquaMedicPowerSwitch(CoordinatorEntity, SwitchEntity):
         self._attr_name = "Power"
         self._attr_unique_id = f"aqua_medic_dc_runner_{device_id}_power"
         self._entry = entry  # 🔹 Store entry for later reference
+        self.entity_id = f"switch.aqua_medic_dc_runner_{device_id}_power"
 
     @property
     def is_on(self):
