@@ -18,7 +18,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         _LOGGER.error("No devices found in Aqua Medic integration.")
         return
 
-    device_id = devices[0]["did"]  # ✅ Extract device ID
+    device_id = devices[0]["did"]  # Extract device ID
 
     # Create update coordinator for periodic state refresh
     coordinator = DataUpdateCoordinator(
@@ -50,7 +50,7 @@ class AquaMedicPowerSwitch(CoordinatorEntity, SwitchEntity):
     @property
     def is_on(self):
         """Return true if switch is on."""
-        if not isinstance(self.coordinator.data, dict):  # ✅ Ensure it's a dict
+        if not isinstance(self.coordinator.data, dict):  # Ensure it's a dict
             _LOGGER.error("Unexpected coordinator data type: %s", type(self.coordinator.data))
             return False  # Default to off if data is invalid
 
@@ -86,7 +86,7 @@ class AquaMedicPowerSwitch(CoordinatorEntity, SwitchEntity):
         _LOGGER.info("Turning on device %s", self._device_id)
         await self._client.set_power(self._device_id, True)
 
-        # ✅ **Wait before fetching state**
+        # Wait before fetching state**
         await asyncio.sleep(1)
 
         _LOGGER.info("Fetching latest state after power ON")
@@ -97,7 +97,7 @@ class AquaMedicPowerSwitch(CoordinatorEntity, SwitchEntity):
         _LOGGER.info("Turning off device %s", self._device_id)
         await self._client.set_power(self._device_id, False)
 
-        # ✅ **Wait before fetching state**
+        # Wait before fetching state**
         await asyncio.sleep(1)
 
         _LOGGER.info("Fetching latest state after power OFF")

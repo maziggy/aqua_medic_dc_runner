@@ -53,7 +53,7 @@ class AquaMedicMotorSpeed(CoordinatorEntity, NumberEntity):
         self._attr_native_step = 1
         self.entity_id = f"number.aqua_medic_dc_runner_{device_id}_speed"
 
-        # ✅ Ensure device_info correctly associates the entity with the device
+        # Ensure device_info correctly associates the entity with the device
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device_id)},
             "name": "Aqua Medic DC Runner",
@@ -73,7 +73,7 @@ class AquaMedicMotorSpeed(CoordinatorEntity, NumberEntity):
             _LOGGER.warning("⚠️ Coordinator data is None, returning last known speed.")
             return self._attr_native_value
 
-        # ✅ Ensure we extract the correct JSON format from API response
+        # Ensure we extract the correct JSON format from API response
         device_data = self.coordinator.data.get("attr", {})
         if not device_data:
             _LOGGER.warning("⚠️ API response is missing 'attr' field: %s", self.coordinator.data)
@@ -90,7 +90,7 @@ class AquaMedicMotorSpeed(CoordinatorEntity, NumberEntity):
         _LOGGER.info("⚙️ Setting motor speed to %s for device %s", value, self._device_id)
         await self._client.set_motor_speed(self._device_id, int(value))
 
-        # ✅ **Force refresh from API after setting speed**
+        # Force refresh from API after setting speed**
         await asyncio.sleep(2)
         _LOGGER.info("🔄 Fetching latest state after speed change")
         await self.coordinator.async_request_refresh()
@@ -108,10 +108,10 @@ class AquaMedicUpdateInterval(NumberEntity):
         self._attr_native_step = 1
         self._attr_native_unit_of_measurement = "seconds"
         self._attr_native_value = DEFAULT_UPDATE_INTERVAL
-        self._attr_mode = "slider"  # ✅ Ensures slider is used in UI
+        self._attr_mode = "slider"  # Ensures slider is used in UI
         self.entity_id = f"number.aqua_medic_dc_runner_{device_id}_update_interval"
 
-        # ✅ Fix `via_device` issue by referencing `device_id` correctly
+        # Fix `via_device` issue by referencing `device_id` correctly
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device_id)},  # Ensure correct device ID is used
             "name": "Aqua Medic DC Runner",

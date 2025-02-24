@@ -1,10 +1,9 @@
 import logging
+from datetime import timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_state_change
 from homeassistant.helpers import entity_registry as er
-from datetime import timedelta
-
 from .client import AquaMedicClient
 from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
 
@@ -12,7 +11,6 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    """Set up Aqua Medic integration from a config entry."""
     _LOGGER.info("🔧 Setting up Aqua Medic integration...")
 
     username = entry.data["username"]
@@ -33,7 +31,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = client
 
-    # ✅ **Ensure the input_number entity is created automatically**
     update_interval_entity = "input_number.aqua_medic_update_interval"
 
     # Check if input_number exists in HA before trying to use it
@@ -60,7 +57,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         except Exception as e:
             _LOGGER.error(f"❌ Failed to set {update_interval_entity}: {e}")
 
-    # ✅ **Ensure the entity exists before tracking changes**
+    # Ensure the entity exists before tracking changes**
     state = hass.states.get(update_interval_entity)
     if state is None:
         _LOGGER.warning(
@@ -70,7 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     else:
         update_interval = int(float(state.state))
 
-        # ✅ Track changes to the input_number
+        # Track changes to the input_number
         async def update_interval_listener(entity_id, old_state, new_state):
             """Update polling interval dynamically when input_number changes."""
             if new_state and new_state.state:
@@ -86,7 +83,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     hass.bus.async_listen_once("homeassistant_stop", cleanup)
 
-    # ✅ Ensure all entities register
+    # Ensure all entities register
     await hass.config_entries.async_forward_entry_setups(entry, ["number", "switch"])
 
     _LOGGER.info("✅ Aqua Medic integration set up successfully!")
