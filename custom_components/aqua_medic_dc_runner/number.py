@@ -25,7 +25,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         _LOGGER,
         name="aqua_medic_motor_speed_update",
         update_method=lambda: client.get_latest_device_data(device_id),
-        update_interval=timedelta(seconds=15),
+        update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL),
     )
 
     await coordinator.async_config_entry_first_refresh()
@@ -104,7 +104,7 @@ class AquaMedicUpdateInterval(NumberEntity):
         self._attr_name = "Update Interval"
         self._attr_unique_id = f"aqua_medic_dc_runner_{device_id}_update_interval"
         self._attr_native_min_value = 5
-        self._attr_native_max_value = 3600
+        self._attr_native_max_value = 300
         self._attr_native_step = 1
         self._attr_native_unit_of_measurement = "seconds"
         self._attr_native_value = DEFAULT_UPDATE_INTERVAL

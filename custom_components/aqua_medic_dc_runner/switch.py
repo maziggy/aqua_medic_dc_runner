@@ -3,7 +3,7 @@ import asyncio
 from datetime import timedelta
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
-from .const import DOMAIN
+from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         _LOGGER,
         name="aqua_medic_switch_update",
         update_method=lambda: client.get_latest_device_data(device_id),
-        update_interval=timedelta(seconds=5),  # 🔹 Reduce polling interval to 5 sec
+        update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL),  # 🔹 Reduce polling interval to 5 sec
     )
 
     await coordinator.async_config_entry_first_refresh()  # Ensure first data load

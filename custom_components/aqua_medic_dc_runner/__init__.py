@@ -6,7 +6,7 @@ from homeassistant.helpers import entity_registry as er
 from datetime import timedelta
 
 from .client import AquaMedicClient
-from .const import DOMAIN
+from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         # Set default value only if entity exists
         service_data_set = {
             "entity_id": update_interval_entity,
-            "value": 30  # Default to 30 seconds
+            "value": DEFAULT_UPDATE_INTERVAL
         }
 
         try:
