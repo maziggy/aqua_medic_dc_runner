@@ -1,6 +1,6 @@
+import json
 import logging
 import aiohttp
-import json
 from .const import API_BASE_URL
 
 _LOGGER = logging.getLogger(__name__)
@@ -13,12 +13,12 @@ class AquaMedicClient:
         self.app_id = app_id
         self.token = None
         self.uid = None
-        self.session = None  # ✅ Start as None
+        self.session = None
 
     async def ensure_session(self):
         """Ensure session is open before making requests."""
         if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession()  # ✅ Create new session if needed
+            self.session = aiohttp.ClientSession()
 
     async def close(self):
         """Close the aiohttp session properly."""
@@ -28,7 +28,7 @@ class AquaMedicClient:
 
     async def authenticate(self):
         """Authenticate with Gizwits API and retrieve user token."""
-        await self.ensure_session()  # ✅ Ensure session is open before request
+        await self.ensure_session()  # Ensure session is open before request
 
         _LOGGER.info(f"🔐 Attempting login with username: {self.username} and App ID: {self.app_id}")
 
@@ -55,7 +55,7 @@ class AquaMedicClient:
 
     async def get_devices(self):
         """Fetch list of devices associated with the user."""
-        await self.ensure_session()  # ✅ Ensure session is open before request
+        await self.ensure_session()  # Ensure session is open before request
 
         if not self.token:
             _LOGGER.error("❌ Cannot fetch devices: No token. Authentication required.")
@@ -98,8 +98,8 @@ class AquaMedicClient:
         async with self.session.get(url, headers=headers) as resp:
             if resp.status == 200:
                 data = await resp.json()
-                _LOGGER.debug("📡 Full API Response: %s", data)  # ✅ Debug full response
-                return data  # ✅ Ensures both switch & number entities work
+                _LOGGER.debug("📡 Full API Response: %s", data)  # Debug full response
+                return data
             else:
                 _LOGGER.error("❌ Failed to fetch latest device data: %s", resp.status)
                 return None
@@ -122,8 +122,10 @@ class AquaMedicClient:
         async with self.session.post(url, headers=headers, json=payload) as resp:
             if resp.status == 200:
                 _LOGGER.info(f"Power state set to {state} for device {device_id}")
+                return True
             else:
                 _LOGGER.error(f"Failed to set power state: {await resp.text()}")
+                return False
 
     async def set_motor_speed(self, device_id: str, speed: int):
         """Send motor speed command to the Aqua Medic device."""
@@ -143,8 +145,10 @@ class AquaMedicClient:
         async with self.session.post(url, headers=headers, json=payload) as resp:
             if resp.status == 200:
                 _LOGGER.info(f"Motor speed set to {speed} for device {device_id}")
+                return True
             else:
                 _LOGGER.error(f"Failed to set motor speed: {await resp.text()}")
+                return False
 
     async def get_power_state(self, device_id):
         """Fetch the current power state from API."""

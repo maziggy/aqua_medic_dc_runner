@@ -17,11 +17,11 @@ class AquaMedicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             username = user_input["username"]
             password = user_input["password"]
-            app_id = DEFAULT_APP_ID  # ✅ Ensuring app_id is passed correctly
+            app_id = DEFAULT_APP_ID
 
-            client = AquaMedicClient(username, password, app_id)  # ✅ Fix: Include app_id
+            client = AquaMedicClient(username, password, app_id)
 
-            success = await client.authenticate()  # ✅ Using authenticate() instead of login()
+            success = await client.authenticate()  # Using authenticate() instead of login()
             if success:
                 return self.async_create_entry(
                     title="Aqua Medic DC Runner",
