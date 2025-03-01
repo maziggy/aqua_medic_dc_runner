@@ -84,7 +84,8 @@ class AquaMedicPowerSwitch(CoordinatorEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs):
         """Turn the switch on and refresh state."""
         _LOGGER.info("Turning on device %s", self._device_id)
-        await self._client.set_power(self._device_id, True)
+        if await self._client.set_power(self._device_id, True) is True:
+            await self.async_update()
 
         # Wait before fetching state**
         await asyncio.sleep(1)
@@ -95,7 +96,8 @@ class AquaMedicPowerSwitch(CoordinatorEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs):
         """Turn the switch off and refresh state."""
         _LOGGER.info("Turning off device %s", self._device_id)
-        await self._client.set_power(self._device_id, False)
+        if await self._client.set_power(self._device_id, False) is True:
+            await self.async_update()
 
         # Wait before fetching state**
         await asyncio.sleep(1)

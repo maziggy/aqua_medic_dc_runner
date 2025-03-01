@@ -122,8 +122,10 @@ class AquaMedicClient:
         async with self.session.post(url, headers=headers, json=payload) as resp:
             if resp.status == 200:
                 _LOGGER.info(f"Power state set to {state} for device {device_id}")
+                return True
             else:
                 _LOGGER.error(f"Failed to set power state: {await resp.text()}")
+                return False
 
     async def set_motor_speed(self, device_id: str, speed: int):
         """Send motor speed command to the Aqua Medic device."""
@@ -143,8 +145,10 @@ class AquaMedicClient:
         async with self.session.post(url, headers=headers, json=payload) as resp:
             if resp.status == 200:
                 _LOGGER.info(f"Motor speed set to {speed} for device {device_id}")
+                return True
             else:
                 _LOGGER.error(f"Failed to set motor speed: {await resp.text()}")
+                return False
 
     async def get_power_state(self, device_id):
         """Fetch the current power state from API."""
