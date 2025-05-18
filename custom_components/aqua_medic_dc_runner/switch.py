@@ -3,7 +3,7 @@ import asyncio
 from datetime import timedelta, datetime
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
-from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
+from .const import DOMAIN
 from .client import AquaMedicClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -11,7 +11,9 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up Aqua Medic switch entity."""
-    client: AquaMedicClient = hass.data[DOMAIN][entry.entry_id]  # Ensure client is correctly retrieved
+    data = hass.data[DOMAIN][entry.entry_id]
+    client = data["client"]
+    coordinator = data["coordinator"]
 
     devices = await client.get_devices()
 
@@ -21,18 +23,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
     device_id = devices[0]["did"]  # Extract device ID
 
-    # Create update coordinator for periodic state refresh
-    coordinator = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        name="aqua_medic_switch_update",
-        update_method=lambda: client.get_latest_device_data(device_id),
-        update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL),  # 🔹 Reduce polling interval to 5 sec
-    )
-
-    await coordinator.async_config_entry_first_refresh()  # Ensure first data load
-
-    async_add_entities([AquaMedicPowerSwitch(client, devices[0]["did"], coordinator, entry)])
+    async_add_entities([AquaMedicPowerSwitch(client, device_id, coordinator, entry)])
 
 
 class AquaMedicPowerSwitch(CoordinatorEntity, SwitchEntity):

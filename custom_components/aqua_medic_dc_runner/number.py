@@ -2,16 +2,17 @@ import logging
 import asyncio
 from datetime import timedelta
 from homeassistant.components.number import NumberEntity
-from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
-from .client import AquaMedicClient  # ✅ Ensure client is imported
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up Aqua Medic number entities for motor speed and update interval."""
-    client: AquaMedicClient = hass.data[DOMAIN][entry.entry_id]
+    data = hass.data[DOMAIN][entry.entry_id]
+    client = data["client"]
+    coordinator = data["coordinator"]
 
     devices = await client.get_devices()
     if not devices:
@@ -20,21 +21,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
     device_id = devices[0]["did"]
 
-    coordinator = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        name="aqua_medic_motor_speed_update",
-        update_method=lambda: client.get_latest_device_data(device_id),
-        update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL),
-    )
-
-    await coordinator.async_config_entry_first_refresh()
-
     async_add_entities([
         AquaMedicMotorSpeed(client, device_id, coordinator, entry),
-        AquaMedicUpdateInterval(entry, device_id)  # ✅ Pass `device_id` correctly
+        AquaMedicUpdateInterval(entry, device_id)
     ])
-
 
 
 class AquaMedicMotorSpeed(CoordinatorEntity, NumberEntity):
@@ -42,7 +32,7 @@ class AquaMedicMotorSpeed(CoordinatorEntity, NumberEntity):
 
     def __init__(self, client, device_id, coordinator, entry):
         """Initialize the number entity."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, context=device_id)
         self._client = client
         self._device_id = device_id
         self._attr_name = "Speed"
@@ -79,54 +69,65 @@ class AquaMedicMotorSpeed(CoordinatorEntity, NumberEntity):
 
         motor_speed = device_data.get("Motor_Speed")
 
-
         # Only return the actual API value
         return motor_speed
 
+    @property
+    def available(self):
+        """Return if entity is available."""
+        return self.coordinator.last_update_success
+
     async def async_set_native_value(self, value: float):
         """Set motor speed."""
+        _LOGGER.info(f"Setting speed to {value} for device {self._device_id}")
         
         # Prevent concurrent updates
         if self._is_updating:
+            _LOGGER.warning("Already updating, skipping")
             return
             
         self._is_updating = True
         
         try:
-            if await self._client.set_motor_speed(self._device_id, int(value)):
+            result = await self._client.set_motor_speed(self._device_id, int(value))
+            _LOGGER.info(f"set_motor_speed result: {result}")
+            
+            if result:
+                # Wait a bit for the device to process
+                await asyncio.sleep(2)
                 
                 # Force immediate coordinator refresh to get current state
                 await self.coordinator.async_request_refresh()
                 
-                # Poll for confirmation with exponential backoff
-                for attempt in range(10):
-                    await asyncio.sleep(min(2 * (attempt + 1), 10))  # 2, 4, 6, 8, 10, 10, 10...
+                # Poll for confirmation
+                for attempt in range(5):
+                    await asyncio.sleep(2)
                     
                     # Force a fresh API call
                     new_data = await self._client.get_latest_device_data(self._device_id)
                     if new_data and "attr" in new_data:
                         actual_speed = new_data["attr"].get("Motor_Speed")
+                        _LOGGER.info(f"Attempt {attempt + 1}: API reports speed={actual_speed}, expected={value}")
                         
                         # Update coordinator with fresh data
                         self.coordinator.data = new_data
                         
                         if actual_speed == int(value):
+                            _LOGGER.info("Speed confirmed by device")
                             break
-                    
+                    else:
+                        _LOGGER.warning(f"Attempt {attempt + 1}: No valid data from API")
+                
                 # Final refresh to ensure we have the latest state
                 await self.coordinator.async_request_refresh()
+            else:
+                _LOGGER.error("Failed to set motor speed")
                 
+        except Exception as e:
+            _LOGGER.error(f"Error setting speed: {e}")
         finally:
             self._is_updating = False
 
-    async def async_update(self):
-        """Manually force a state update from the API when Home Assistant requests it."""
-        new_state = await self._client.get_latest_device_data(self._device_id)
-
-        if new_state and "attr" in new_state:
-            self.coordinator.data = new_state
-        else:
-            _LOGGER.warning("⚠️ No 'attr' field found in API response.")
 
 class AquaMedicUpdateInterval(NumberEntity):
     """Custom NumberEntity for controlling update interval."""
@@ -142,7 +143,7 @@ class AquaMedicUpdateInterval(NumberEntity):
         self._attr_native_value = DEFAULT_UPDATE_INTERVAL
         self._attr_mode = "box"  # Ensures slider is used in UI
         self.entity_id = f"number.aqua_medic_dc_runner_{device_id}_update_interval"
-
+        
         # Fix `via_device` issue by referencing `device_id` correctly
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device_id)},  # Ensure correct device ID is used
@@ -156,7 +157,7 @@ class AquaMedicUpdateInterval(NumberEntity):
     def icon(self):
         return "mdi:camera-timer"
 
-    def set_native_value(self, value: float) -> None:
-        """Set the update interval value"""
+    async def async_set_native_value(self, value: float) -> None:
+        """Set the update interval value."""
         self._attr_native_value = int(value)
-        self.schedule_update_ha_state()
+        self.async_write_ha_state()

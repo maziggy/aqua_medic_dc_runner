@@ -142,12 +142,18 @@ class AquaMedicClient:
             "Content-Type": "application/json"
         }
 
+        _LOGGER.info(f"Sending speed {speed} to API: {url}")
+        _LOGGER.debug(f"Payload: {payload}")
+        
         async with self.session.post(url, headers=headers, json=payload) as resp:
+            response_text = await resp.text()
+            _LOGGER.info(f"API response status: {resp.status}, body: {response_text}")
+            
             if resp.status == 200:
                 _LOGGER.info(f"Motor speed set to {speed} for device {device_id}")
                 return True
             else:
-                _LOGGER.error(f"Failed to set motor speed: {await resp.text()}")
+                _LOGGER.error(f"Failed to set motor speed: {response_text}")
                 return False
 
     async def get_power_state(self, device_id):
