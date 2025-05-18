@@ -2,8 +2,7 @@ import logging
 from datetime import timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.event import async_track_state_change
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .client import AquaMedicClient
 from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
 
@@ -29,7 +28,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         _LOGGER.error("❌ No devices found. Aborting setup.")
         return False
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = client
+    device_id = devices[0]["did"]
+    
+    # Create standard coordinator
+    coordinator = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name="aqua_medic_shared_coordinator",
+        update_method=lambda: client.get_latest_device_data(device_id),
+        update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL),
+    )
+    
+    await coordinator.async_config_entry_first_refresh()
+    
+    # Start listening for updates
+    coordinator.async_add_listener(lambda: None)
+    
+    # Store both client and coordinator
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "client": client,
+        "coordinator": coordinator
+    }
 
     async def cleanup(event):
         """Cleanup tasks when Home Assistant stops."""
@@ -50,9 +69,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     _LOGGER.info("🗑️ Unloading Aqua Medic integration...")
     
     # Clean up the client
-    client = hass.data[DOMAIN].get(entry.entry_id)
-    if client:
-        await client.close()
+    data = hass.data[DOMAIN].get(entry.entry_id)
+    if data and "client" in data:
+        await data["client"].close()
     
     # Unload platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, ["number", "switch"])
