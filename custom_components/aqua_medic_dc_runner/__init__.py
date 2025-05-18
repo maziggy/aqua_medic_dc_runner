@@ -31,51 +31,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = client
 
-    update_interval_entity = "input_number.aqua_medic_update_interval"
-
-    # Check if input_number exists in HA before trying to use it
-    if hass.states.get(update_interval_entity) is None:
-        _LOGGER.warning(
-            f"⚠️ {update_interval_entity} not found in Home Assistant states. "
-            f"Ensure input_number is properly defined in `configuration.yaml`"
-        )
-    else:
-        # Set default value only if entity exists
-        service_data_set = {
-            "entity_id": update_interval_entity,
-            "value": DEFAULT_UPDATE_INTERVAL
-        }
-
-        try:
-            await hass.services.async_call(
-                "input_number",
-                "set_value",
-                service_data_set,
-                blocking=True,
-            )
-            _LOGGER.info(f"✅ Successfully set {update_interval_entity} to {service_data_set['value']} seconds")
-        except Exception as e:
-            _LOGGER.error(f"❌ Failed to set {update_interval_entity}: {e}")
-
-    # Ensure the entity exists before tracking changes**
-    state = hass.states.get(update_interval_entity)
-    if state is None:
-        _LOGGER.warning(
-            f"⚠️ {update_interval_entity} not found in Home Assistant states."
-            f" Ensure input_number integration is loaded."
-        )
-    else:
-        update_interval = int(float(state.state))
-
-        # Track changes to the input_number
-        async def update_interval_listener(entity_id, old_state, new_state):
-            """Update polling interval dynamically when input_number changes."""
-            if new_state and new_state.state:
-                new_interval = int(float(new_state.state))
-                _LOGGER.info(f"🔄 Updated polling interval to {new_interval} seconds.")
-
-        async_track_state_change(hass, update_interval_entity, update_interval_listener)
-
     async def cleanup(event):
         """Cleanup tasks when Home Assistant stops."""
         _LOGGER.info("🛑 Home Assistant is stopping, closing client session...")
@@ -88,3 +43,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     _LOGGER.info("✅ Aqua Medic integration set up successfully!")
     return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
+    """Unload a config entry."""
+    _LOGGER.info("🗑️ Unloading Aqua Medic integration...")
+    
+    # Clean up the client
+    client = hass.data[DOMAIN].get(entry.entry_id)
+    if client:
+        await client.close()
+    
+    # Unload platforms
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["number", "switch"])
+    
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id)
+    
+    return unload_ok

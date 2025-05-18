@@ -1,9 +1,10 @@
 import logging
 import asyncio
-from datetime import timedelta
+from datetime import timedelta, datetime
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
+from .client import AquaMedicClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,23 +47,31 @@ class AquaMedicPowerSwitch(CoordinatorEntity, SwitchEntity):
         self._attr_unique_id = f"aqua_medic_dc_runner_{device_id}_power"
         self._entry = entry  # 🔹 Store entry for later reference
         self.entity_id = f"switch.aqua_medic_dc_runner_{device_id}_power"
+        self._expected_state = None  # Track expected state during updates
+        self._expected_state_until = None  # Track when to stop using expected state
 
     @property
     def is_on(self):
         """Return true if switch is on."""
+        # If we're expecting a specific state and haven't reached the timeout
+        if self._expected_state is not None and self._expected_state_until:
+            if datetime.now() < self._expected_state_until:
+                return self._expected_state
+            else:
+                # Timeout reached, clear expected state
+                self._expected_state = None
+                self._expected_state_until = None
+            
         if not isinstance(self.coordinator.data, dict):  # Ensure it's a dict
-            _LOGGER.error("Unexpected coordinator data type: %s", type(self.coordinator.data))
-            return False  # Default to off if data is invalid
+            return None  # Let HA handle the unknown state
 
         if "attr" not in self.coordinator.data:
-            _LOGGER.warning("API response did not contain expected 'attr' field.")
-            return False
+            return None  # Let HA handle the unknown state
 
         device_data = self.coordinator.data["attr"]
 
         switch_state = device_data.get("SwitchON", device_data.get("PowerState", 0))
 
-        _LOGGER.debug("Device %s state read from API: %s", self._device_id, switch_state)
 
         return switch_state == 1
 
@@ -83,35 +92,61 @@ class AquaMedicPowerSwitch(CoordinatorEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs):
         """Turn the switch on and refresh state."""
-        _LOGGER.info("Turning on device %s", self._device_id)
-        if await self._client.set_power(self._device_id, True) is True:
-            await self.async_update()
-
-        # Wait before fetching state**
-        await asyncio.sleep(1)
-
-        _LOGGER.info("Fetching latest state after power ON")
-        await self.coordinator.async_request_refresh()
+        if await self._client.set_power(self._device_id, True):
+            # Store the expected state with timeout
+            self._expected_state = True
+            self._expected_state_until = datetime.now() + timedelta(seconds=10)
+            
+            # Update coordinator data immediately for responsive UI
+            if self.coordinator.data and "attr" in self.coordinator.data:
+                self.coordinator.data["attr"]["SwitchON"] = 1
+                # Also update PowerState if it exists
+                if "PowerState" in self.coordinator.data["attr"]:
+                    self.coordinator.data["attr"]["PowerState"] = 1
+            else:
+                # Create minimal data structure if it doesn't exist
+                self.coordinator.data = {"attr": {"SwitchON": 1}}
+            
+            # Notify Home Assistant of the state change
+            self.async_write_ha_state()
+            
+            # Wait a moment for the device to process
+            await asyncio.sleep(2)
+            
+            # Request a refresh from the coordinator
+            await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off and refresh state."""
-        _LOGGER.info("Turning off device %s", self._device_id)
-        if await self._client.set_power(self._device_id, False) is True:
-            await self.async_update()
-
-        # Wait before fetching state**
-        await asyncio.sleep(1)
-
-        _LOGGER.info("Fetching latest state after power OFF")
-        await self.coordinator.async_request_refresh()
+        if await self._client.set_power(self._device_id, False):
+            # Store the expected state with timeout
+            self._expected_state = False
+            self._expected_state_until = datetime.now() + timedelta(seconds=10)
+            
+            # Update coordinator data immediately for responsive UI
+            if self.coordinator.data and "attr" in self.coordinator.data:
+                self.coordinator.data["attr"]["SwitchON"] = 0
+                # Also update PowerState if it exists
+                if "PowerState" in self.coordinator.data["attr"]:
+                    self.coordinator.data["attr"]["PowerState"] = 0
+            else:
+                # Create minimal data structure if it doesn't exist
+                self.coordinator.data = {"attr": {"SwitchON": 0}}
+            
+            # Notify Home Assistant of the state change
+            self.async_write_ha_state()
+            
+            # Wait a moment for the device to process
+            await asyncio.sleep(2)
+            
+            # Request a refresh from the coordinator
+            await self.coordinator.async_request_refresh()
 
     async def async_update(self):
         """Manually force a state update from the API when Home Assistant requests it."""
-        _LOGGER.info("🔄 Manually fetching latest device data for %s", self._device_id)
         new_state = await self._client.get_latest_device_data(self._device_id)
 
         if new_state and "attr" in new_state:
-            _LOGGER.info("✅ Successfully updated state: %s", new_state["attr"])
             self.coordinator.data = new_state
         else:
             _LOGGER.warning("⚠️ No 'attr' field found in API response.")
