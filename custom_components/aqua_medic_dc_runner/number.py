@@ -35,7 +35,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
         AquaMedicUpdateInterval(entry, device_id)  # ✅ Pass `device_id` correctly
     ])
 
-    _LOGGER.info("✅ Registered Motor Speed and Update Interval entities for device: %s", device_id)
 
 
 class AquaMedicMotorSpeed(CoordinatorEntity, NumberEntity):
@@ -52,6 +51,7 @@ class AquaMedicMotorSpeed(CoordinatorEntity, NumberEntity):
         self._attr_native_max_value = 100
         self._attr_native_step = 1
         self.entity_id = f"number.aqua_medic_dc_runner_{device_id}_speed"
+        self._is_updating = False  # Track if we're currently updating
 
         # Ensure device_info correctly associates the entity with the device
         self._attr_device_info = {
@@ -70,39 +70,60 @@ class AquaMedicMotorSpeed(CoordinatorEntity, NumberEntity):
     def native_value(self):
         """Return the current motor speed."""
         if not self.coordinator.data:
-            _LOGGER.warning("⚠️ Coordinator data is None, returning last known speed.")
-            return self._attr_native_value
+            return None  # Let HA handle the unknown state
 
         # Ensure we extract the correct JSON format from API response
         device_data = self.coordinator.data.get("attr", {})
         if not device_data:
-            _LOGGER.warning("⚠️ API response is missing 'attr' field: %s", self.coordinator.data)
-            return self._attr_native_value  # Return last known value
+            return None  # Let HA handle the unknown state
 
         motor_speed = device_data.get("Motor_Speed")
 
-        _LOGGER.debug("📡 Motor Speed from API: %s", motor_speed)
 
-        return motor_speed if motor_speed is not None else self._attr_native_value
+        # Only return the actual API value
+        return motor_speed
 
     async def async_set_native_value(self, value: float):
         """Set motor speed."""
-        _LOGGER.info("⚙️ Setting motor speed to %s for device %s", value, self._device_id)
-        if await self._client.set_motor_speed(self._device_id, int(value)) is True:
-            await self.async_update()
-
-        # Force refresh from API after setting speed**
-        await asyncio.sleep(2)
-        _LOGGER.info("🔄 Fetching latest state after speed change")
-        await self.coordinator.async_request_refresh()
+        
+        # Prevent concurrent updates
+        if self._is_updating:
+            return
+            
+        self._is_updating = True
+        
+        try:
+            if await self._client.set_motor_speed(self._device_id, int(value)):
+                
+                # Force immediate coordinator refresh to get current state
+                await self.coordinator.async_request_refresh()
+                
+                # Poll for confirmation with exponential backoff
+                for attempt in range(10):
+                    await asyncio.sleep(min(2 * (attempt + 1), 10))  # 2, 4, 6, 8, 10, 10, 10...
+                    
+                    # Force a fresh API call
+                    new_data = await self._client.get_latest_device_data(self._device_id)
+                    if new_data and "attr" in new_data:
+                        actual_speed = new_data["attr"].get("Motor_Speed")
+                        
+                        # Update coordinator with fresh data
+                        self.coordinator.data = new_data
+                        
+                        if actual_speed == int(value):
+                            break
+                    
+                # Final refresh to ensure we have the latest state
+                await self.coordinator.async_request_refresh()
+                
+        finally:
+            self._is_updating = False
 
     async def async_update(self):
         """Manually force a state update from the API when Home Assistant requests it."""
-        _LOGGER.info("🔄 Manually fetching latest device data for %s", self._device_id)
         new_state = await self._client.get_latest_device_data(self._device_id)
 
         if new_state and "attr" in new_state:
-            _LOGGER.info("✅ Successfully updated state: %s", new_state["attr"])
             self.coordinator.data = new_state
         else:
             _LOGGER.warning("⚠️ No 'attr' field found in API response.")
@@ -139,4 +160,3 @@ class AquaMedicUpdateInterval(NumberEntity):
         """Set the update interval value"""
         self._attr_native_value = int(value)
         self.schedule_update_ha_state()
-        _LOGGER.info(f"🔄 Update interval changed to {int(value)} seconds")
