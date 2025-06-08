@@ -15,32 +15,37 @@ class AquaMedicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            username = user_input["username"]
-            password = user_input["password"]
+            token = user_input["token"]
+            device_id = user_input["device_id"]
             app_id = DEFAULT_APP_ID
 
-            client = AquaMedicClient(username, password, app_id)
+            # Create client with token directly
+            client = AquaMedicClient(None, None, app_id)
+            client.token = token
 
-            success = await client.authenticate()  # Using authenticate() instead of login()
-            if success:
-                return self.async_create_entry(
-                    title="Aqua Medic DC Runner",
-                    data={
-                        "username": username,
-                        "password": password,
-                        "app_id": client.app_id,
-                        "token": client.token,
-                        "uid": client.uid
-                    },
-                )
-            else:
-                errors["base"] = "auth_failed"
+            # Test the connection by fetching device data
+            try:
+                device_data = await client.get_latest_device_data(device_id)
+                if device_data:
+                    return self.async_create_entry(
+                        title="Aqua Medic DC Runner",
+                        data={
+                            "app_id": app_id,
+                            "token": token,
+                            "device_id": device_id
+                        },
+                    )
+                else:
+                    errors["base"] = "connection_failed"
+            except Exception as e:
+                _LOGGER.error(f"Connection test failed: {e}")
+                errors["base"] = "connection_failed"
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
-                vol.Required("username"): str,
-                vol.Required("password"): str,
+                vol.Required("token", description="User Token from extraction script"): str,
+                vol.Required("device_id", description="Device ID from extraction script"): str,
             }),
             errors=errors,
         )

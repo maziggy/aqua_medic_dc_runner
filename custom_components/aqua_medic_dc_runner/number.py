@@ -14,12 +14,16 @@ async def async_setup_entry(hass, entry, async_add_entities):
     client = data["client"]
     coordinator = data["coordinator"]
 
-    devices = await client.get_devices()
-    if not devices:
-        _LOGGER.error("❌ No devices found in Aqua Medic integration.")
-        return
-
-    device_id = devices[0]["did"]
+    # Get device_id from configuration (token-based setup) or legacy device list
+    if "device_id" in entry.data:
+        device_id = entry.data["device_id"]
+    else:
+        # Legacy setup - get from devices list
+        devices = await client.get_devices()
+        if not devices:
+            _LOGGER.error("❌ No devices found in Aqua Medic integration.")
+            return
+        device_id = devices[0]["did"]
 
     async_add_entities([
         AquaMedicMotorSpeed(client, device_id, coordinator, entry),

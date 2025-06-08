@@ -1,6 +1,7 @@
 import json
 import logging
 import aiohttp
+import uuid
 from .const import API_BASE_URL
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,15 +27,74 @@ class AquaMedicClient:
             await self.session.close()
             _LOGGER.info("✅ aiohttp ClientSession closed successfully.")
 
+    async def provision(self):
+        """Provision device/phone with Gizwits API - required before login."""
+        await self.ensure_session()
+        
+        # Generate a unique phone_id for this Home Assistant instance
+        phone_id = str(uuid.uuid4()).upper()
+        
+        _LOGGER.info(f"🔧 Provisioning device with App ID: {self.app_id}")
+        
+        url = f"{API_BASE_URL}/app/provision"
+        payload = {
+            "phone_id": phone_id,
+            "os": "Linux",
+            "os_ver": "5.4", 
+            "sdk_version": "2.23.23.01613",
+            "phone_model": "Home Assistant"
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "X-Gizwits-Application-Id": self.app_id,
+            "User-Agent": "gizwitssuperapprn/154300000 CFNetwork/3826.500.131 Darwin/24.5.0"
+        }
+        
+        async with self.session.post(url, json=payload, headers=headers) as resp:
+            raw_text = await resp.text()
+            try:
+                data = json.loads(raw_text)
+                if resp.status == 200:
+                    _LOGGER.info(f"✅ Device provisioning successful: {data}")
+                    return True
+                else:
+                    _LOGGER.error(f"❌ Device provisioning failed. Status: {resp.status}, Response: {data}")
+                    return False
+            except json.JSONDecodeError:
+                _LOGGER.error(f"❌ Invalid JSON during provisioning. Response: {raw_text[:500]}")
+                return False
+
     async def authenticate(self):
         """Authenticate with Gizwits API and retrieve user token."""
         await self.ensure_session()  # Ensure session is open before request
+
+        # If we already have a token, skip authentication
+        if self.token and self.uid:
+            _LOGGER.info("✅ Using existing token, skipping authentication")
+            return True
+
+        # Check if we have credentials to authenticate with
+        if not self.username or not self.password:
+            _LOGGER.error("❌ No username/password provided and no existing token")
+            return False
+
+        # First, provision the device if needed
+        _LOGGER.info("🔧 Starting authentication process with provision step...")
+        provision_success = await self.provision()
+        if not provision_success:
+            _LOGGER.warning("⚠️ Provisioning failed, but continuing with login attempt...")
+        else:
+            _LOGGER.info("✅ Provisioning completed successfully")
 
         _LOGGER.info(f"🔐 Attempting login with username: {self.username} and App ID: {self.app_id}")
 
         url = f"{API_BASE_URL}/app/login"
         payload = {"username": self.username, "password": self.password}
-        headers = {"Content-Type": "application/json", "X-Gizwits-Application-Id": self.app_id}
+        headers = {
+            "Content-Type": "application/json", 
+            "X-Gizwits-Application-Id": self.app_id,
+            "User-Agent": "gizwitssuperapprn/154300000 CFNetwork/3826.500.131 Darwin/24.5.0"
+        }
 
         async with self.session.post(url, json=payload, headers=headers) as resp:
             raw_text = await resp.text()
