@@ -2,9 +2,34 @@
   "config": {
     "step": {
       "user": {
-        "title": "Aqua Medic DC Runner",
-        "description": "Enter your App credentials"
+        "title": "Aqua Medic DC Runner Setup",
+        "description": "Choose your setup method",
+        "data": {
+          "setup_method": "Setup Method"
+        }
+      },
+      "manual": {
+        "title": "Manual Setup",
+        "description": "Enter API credentials extracted using the extract_api_data.sh script. Run the script while using the Aqua Medic app to capture the required values.",
+        "data": {
+          "app_id": "App ID",
+          "token": "User Token", 
+          "device_id": "Device ID"
+        }
+      },
+      "legacy": {
+        "title": "Legacy Setup",
+        "description": "Enter your Aqua Medic app username and password",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
       }
+    },
+    "error": {
+      "auth_failed": "Authentication failed. Please check your credentials.",
+      "invalid_credentials": "Invalid credentials. Please check your App ID, Token, and Device ID.",
+      "no_devices": "No devices found. Please ensure your pump is connected to the app."
     }
   }
 }

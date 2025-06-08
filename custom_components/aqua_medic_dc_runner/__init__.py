@@ -12,23 +12,40 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     _LOGGER.info("🔧 Setting up Aqua Medic integration...")
 
-    username = entry.data["username"]
-    password = entry.data["password"]
-    app_id = entry.data["app_id"]
+    # Check if we have new token-based configuration or old username/password
+    if "token" in entry.data:
+        # New token-based setup
+        app_id = entry.data["app_id"]
+        token = entry.data["token"]
+        device_id = entry.data["device_id"]
+        
+        client = AquaMedicClient(None, None, app_id)
+        client.token = token
+        
+        # Test the connection
+        test_data = await client.get_latest_device_data(device_id)
+        if not test_data:
+            _LOGGER.error("❌ Failed to connect with provided token.")
+            return False
+    else:
+        # Legacy username/password setup
+        username = entry.data["username"]
+        password = entry.data["password"]
+        app_id = entry.data["app_id"]
 
-    client = AquaMedicClient(username, password, app_id)
-    success = await client.authenticate()
+        client = AquaMedicClient(username, password, app_id)
+        success = await client.authenticate()
 
-    if not success:
-        _LOGGER.error("❌ Failed to authenticate Aqua Medic API.")
-        return False
+        if not success:
+            _LOGGER.error("❌ Failed to authenticate Aqua Medic API.")
+            return False
 
-    devices = await client.get_devices()
-    if not devices:
-        _LOGGER.error("❌ No devices found. Aborting setup.")
-        return False
+        devices = await client.get_devices()
+        if not devices:
+            _LOGGER.error("❌ No devices found. Aborting setup.")
+            return False
 
-    device_id = devices[0]["did"]
+        device_id = devices[0]["did"]
     
     # Create standard coordinator
     coordinator = DataUpdateCoordinator(
